@@ -1,7 +1,6 @@
 import os
 import pathlib
 from enum import Enum
-
 import torch
 from torch.utils.data import Dataset
 from PIL import Image
@@ -61,10 +60,7 @@ class DehazingDataset(Dataset):
             print(f'Error Loading: {self.__HazyImages[index]}')
             print(f'Error Loading: {self.__ClearImages[index]}')
 
-            # Handle the case of empty images, e.g., skip the sample
-            # You can also replace the empty images with placeholder images if needed
-            # For now, let's just return a placeholder tensor
-            placeholder_image = torch.zeros((3, 512, 512), dtype=torch.float32)
+            placeholder_image = torch.zeros((3, 224, 224), dtype=torch.float32)
             return placeholder_image, placeholder_image
 
         return hazyImage, clearImage

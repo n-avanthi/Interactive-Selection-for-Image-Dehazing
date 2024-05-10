@@ -1,11 +1,11 @@
-# train
+# Training AODNet model
 
 import os
 import datetime
 from PIL import Image
 import pathlib
-# from DehazingDataset import DatasetType, DehazingDataset
-# from DehazingModel import AODnet
+from DehazingDataset_AODNet import DatasetType, DehazingDataset
+from Model_AODNet import AODnet
 import torch
 import torchvision
 import torch.nn as nn
@@ -14,12 +14,12 @@ import torch.utils.data as tu_data
 import torchvision.transforms as transforms
 import torchvision.transforms.functional as tv_functional
 from torchmetrics.image import StructuralSimilarityIndexMeasure
+from skimage.metrics import peak_signal_noise_ratio as psnr
 import cv2.ximgproc
 import numpy as np
 
-
 def GetProjectDir() -> pathlib.Path:
-    return "/content/"
+    return pathlib.Path(__file__).parent.parent
 
 
 def Preprocess(image: Image.Image) -> torch.Tensor:
@@ -48,8 +48,6 @@ def Preprocess(image: Image.Image) -> torch.Tensor:
     filteredImage = gFilter.filter(src=stretched_image_np)
     return torch.from_numpy(filteredImage).permute(2, 0, 1)
 
-    # save per epochs model
-
 def VEF(input_image, output_image, target_image):
 
     # Convert images to grayscale
@@ -61,20 +59,10 @@ def VEF(input_image, output_image, target_image):
     diff_out_target = torch.abs(output_gray - target_gray)
     diff_in_target = torch.abs(input_gray - target_gray)
 
-    # Calculate VEF
     vef = 1 - (torch.mean(diff_out_target) / torch.mean(diff_in_target))
 
     return vef.item()
 
-def PSNR(input_image, output_image):
-    mse = torch.mean((input_image - output_image) ** 2)
-    if mse == 0:
-        return 100  # PSNR is infinity if images are identical
-    max_val = 1.0  # Assuming pixel values are normalized between 0 and 1
-    psnr = 20 * torch.log10(max_val / torch.sqrt(mse))
-    return psnr.item()
-
-# Saves the state of a trained neural network model
 def save_model(epoch, path, net, optimizer, net_name):
     if not os.path.exists(os.path.join(path, net_name)):
          os.mkdir(os.path.join(path, net_name))
@@ -82,14 +70,11 @@ def save_model(epoch, path, net, optimizer, net_name):
         {"epoch": epoch, "state_dict": net.state_dict(), "optimizer": optimizer.state_dict()},
         f=os.path.join(path, net_name, "{}_{}.pth".format("AOD", epoch)),
     )
-    # -------------------------------------------------------------------
-
 
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.has_mps else "cpu")
 
-    # Preparing training and validation datasets
-    datasetPath = GetProjectDir() + "dataset/SS594_Multispectral_Dehazing/Haze1k/Haze1k"
+    datasetPath = GetProjectDir() / "dataset/SS594_Multispectral_Dehazing/Haze1k/Haze1k"
     trainingDataset = DehazingDataset(dehazingDatasetPath=datasetPath, _type=DatasetType.Train, transformFn=Preprocess, verbose=False)
     validationDataset = DehazingDataset(dehazingDatasetPath=datasetPath, _type=DatasetType.Validation, transformFn=Preprocess, verbose=False) # Verbosity level indicates level of additional information provided during execution
 
@@ -101,8 +86,6 @@ if __name__ == "__main__":
 
     print(len(trainingDataset), len(validationDataset))
 
-    # AOD-Net is All in One Dehazing Network
-    # Instantiate the AODNet model
     model = AODnet().to(device)
     print(model) # Prints the model summary like  architecture, number of parameters, and layer configurations
 
@@ -112,7 +95,7 @@ if __name__ == "__main__":
     criterion = nn.MSELoss().to(device=device) # Loss function is initialised and MSE is used
     optimizer = optim.Adam(model.parameters(), lr=1e-3) # Adam optimizer is initialised and learning rate is set to 10^(-3)
 
-    EPOCHS = 20 # Training data will be passed through the model for training 50 times
+    EPOCHS = 100 # Training data will be passed through the model for training 100 times
     patience = 5
     early_stopping_counter = 0
     train_number = len(trainingDataLoader)
@@ -120,8 +103,6 @@ if __name__ == "__main__":
     print("Started Training...")
     model.train()
     for epoch in range(EPOCHS):
-        # -------------------------------------------------------------------
-        # start training
         for step, (haze_image, ori_image) in enumerate(trainingDataLoader):
             try:
                 ori_image, haze_image = ori_image.to(device), haze_image.to(device)
@@ -168,18 +149,17 @@ if __name__ == "__main__":
                 vef_val = VEF(dehaze_image, ori_image, haze_image)
                 avg_vef += vef_val
 
-                # Computing PSNR (Visibility Enhancement Factor)
-                psnr_val = PSNR(ori_image, dehaze_image)  # Calculate PSNR
+                psnr_val = psnr(torch.clamp(dehaze_image, 0, 1).cpu().detach().numpy(), torch.clamp(ori_image, 0, 1).cpu().detach().numpy())
                 avg_psnr += psnr_val
 
                 # Convert images to NumPy arrays
                 ori_image_np = np.array(torchvision.transforms.ToPILImage()(ori_image[0].cpu()))
                 dehaze_image_np = np.array(torchvision.transforms.ToPILImage()(dehaze_image[0].cpu()))
 
-                # torchvision.utils.save_image(
-                #     torchvision.utils.make_grid(torch.cat((haze_image, dehaze_image, ori_image), 0), nrow=ori_image.shape[0]),
-                #     os.path.join(GetProjectDir() / "output", "{}_{}.jpg".format(epoch + 1, step)),
-                # )
+                torchvision.utils.save_image(
+                    torchvision.utils.make_grid(torch.cat((haze_image, dehaze_image, ori_image), 0), nrow=ori_image.shape[0]),
+                    os.path.join(GetProjectDir() / "output", "{}_{}.jpg".format(epoch + 1, step)),
+                )
             except:
                 # Handle missing file error, for example, print a message
                 print(f"Error: {e}. Skipping this batch.")
@@ -195,13 +175,19 @@ if __name__ == "__main__":
         # Early stopping
         if avg_ssim > best_ssim:
             best_ssim = avg_ssim
-            # best_model_path = os.path.join(
-            #   GetProjectDir() / "saved_models",
-            #   "{}_best_model_{}.pth".format(epoch, datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")),
-            # )
+            best_model_path = os.path.join(
+              GetProjectDir() + "saved_models",
+              "{}_best_model_{}.pth".format(epoch, datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")),
+            )
             early_stopping_counter = 0
         else:
             early_stopping_counter += 1
             if early_stopping_counter >= patience:
                 print(f"Early stopping at epoch {epoch + 1} as validation SSIM did not improve for {patience} epochs.")
                 break
+        # Save the best model after all epochs
+    if best_model_path:
+        save_model(epoch, GetProjectDir() / "saved_models", model, optimizer, best_model_path)
+    # Save the best model after all epochs
+    if best_model_path:
+        save_model(epoch, GetProjectDir() / "saved_models", model, optimizer, best_model_path)
