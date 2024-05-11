@@ -1,4 +1,4 @@
-# training resnet model
+# Training resnet model containing layers of DCP
 
 import os
 import pathlib
@@ -9,9 +9,9 @@ import torch.utils.data as tu_data
 import torchvision.utils
 from torchmetrics.image import StructuralSimilarityIndexMeasure
 from skimage.metrics import peak_signal_noise_ratio as psnr
-from DehazingDataset_resnet import DatasetType, DehazingDataset
+from DehazingDataset_DCP import DatasetType, DehazingDataset
 from Model_AODNet_1 import AODnet
-from Model_DCP import DCPModel
+from Model_DCP_resnet import DCPModel
 
 def GetProjectDir() -> pathlib.Path:
     return pathlib.Path(__file__).parent.parent

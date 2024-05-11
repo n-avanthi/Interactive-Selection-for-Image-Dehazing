@@ -1,4 +1,4 @@
-# Training AODNet model
+# Training AODNet model on colab
 
 import os
 import datetime

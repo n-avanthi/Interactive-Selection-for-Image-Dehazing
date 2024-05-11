@@ -1,4 +1,4 @@
-# Training resnet model containing layers of DCP on colab
+# Training VGG16 Model containing layers of DCP
 
 import os
 import pathlib
@@ -9,13 +9,21 @@ import torch.utils.data as tu_data
 import torchvision.utils
 from torchmetrics.image import StructuralSimilarityIndexMeasure
 from skimage.metrics import peak_signal_noise_ratio as psnr
+from torchvision.models import vgg16
 # from DehazingDataset_DCP import DatasetType, DehazingDataset
-# from Model_AODNet import AODnet
-# from Model_DCP_resnet import DCPModel
+# from Preprocess_DCP import Preprocess
+# from Model_DCP_VGG import DCPModel
 
 def GetProjectDir() -> pathlib.Path:
-    # return pathlib.Path(__file__).parent.parent
     return "/content/drive/MyDrive/"
+
+def save_model(epoch, path, net, optimizer, net_name):
+    if not os.path.exists(os.path.join(path, net_name)):
+        os.mkdir(os.path.join(path, net_name))
+    torch.save(
+        {"epoch": epoch, "state_dict": net.state_dict(), "optimizer": optimizer.state_dict()},
+        f=os.path.join(path, net_name, "{}_{}.pth".format("DCP_VGG", epoch)),
+    )
 
 def Preprocess(image: Image.Image) -> torch.Tensor:
     # PIL images are converted to PyTorch tensor which is a multidimensional array
@@ -46,15 +54,6 @@ def Preprocess(image: Image.Image) -> torch.Tensor:
     filtered_image = guided_filter.filter(src=stretched_image_np)
 
     return torch.from_numpy(filtered_image).permute(2, 0, 1)  # channels,height,width
-
-
-def save_model(epoch, path, net, optimizer, net_name):
-    if not os.path.exists(os.path.join(path, net_name)):
-        os.mkdir(os.path.join(path, net_name))
-    torch.save(
-        {"epoch": epoch, "state_dict": net.state_dict(), "optimizer": optimizer.state_dict()},
-        f=os.path.join(path, net_name, "{}_{}.pth".format("DCP", epoch)),
-    )
 
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -111,7 +110,7 @@ if __name__ == "__main__":
 
         for step, (haze_image, ori_image) in enumerate(validationDataLoader):
             try:
-                if step > 10:
+                if step > 10:  
                     break
                 ori_image, haze_image = ori_image.to(device), haze_image.to(device)
                 dehaze_image = model(haze_image)
