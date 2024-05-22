@@ -1,4 +1,4 @@
-# Preprocess for DCP & Resnet
+# Preprocess for AODNet Model
 
 from PIL import Image
 import torch
@@ -8,8 +8,7 @@ import cv2.ximgproc
 class Preprocess:
     def __init__(self):
         self.transform = transforms.Compose([
-            transforms.Resize((224, 224)),  # Resize images to the dimensions required by ResNet18
-            transforms.ToTensor(),
+            transforms.PILToTensor(),
             transforms.ColorJitter(brightness=0.05, contrast=0.05, saturation=0.05, hue=0.05)
         ])
 
@@ -24,13 +23,13 @@ class Preprocess:
         max_val = gamma_corrected_image.max().float()
         if max_val == min_val:  # Handle edge case (constant image)
             return transformed_image
-        stretched_image = (gamma_corrected_image - min_val) / (max_val - min_val)
+        stretched_image = (gamma_corrected_image - min_val) / (max_val - min_val) # min-max normalisation
 
         # Use integer types for filtering
-        stretched_image_np = stretched_image.permute(1, 2, 0).to(torch.float32).numpy()  # height,width, channels
+        stretched_image_np = stretched_image.permute(1, 2, 0).to(torch.float32).numpy()
         guided_filter = cv2.ximgproc.createGuidedFilter(
             guide=stretched_image_np, radius=3, eps=0.01
         )
         filtered_image = guided_filter.filter(src=stretched_image_np)
 
-        return torch.from_numpy(filtered_image).permute(2, 0, 1)  # channels,height,width
+        return torch.from_numpy(filtered_image).permute(2, 0, 1)

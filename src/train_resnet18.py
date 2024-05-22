@@ -1,4 +1,4 @@
-# Training VGG16 Model containing layers of DCP
+# Training Resnet18 model containing custom layers 
 
 import os
 import pathlib
@@ -9,20 +9,50 @@ import torch.utils.data as tu_data
 import torchvision.utils
 from torchmetrics.image import StructuralSimilarityIndexMeasure
 from skimage.metrics import peak_signal_noise_ratio as psnr
-from torchvision.models import vgg16
-from DehazingDataset_DCP import DatasetType, DehazingDataset
-from Preprocess_DCP import Preprocess
-from Model_DCP_VGG import DCPModel
+import cv2.ximgproc
+from DehazingDataset_1 import DatasetType, DehazingDataset
+from Model_AODNet_1 import AODnet
+from Model_Resnet18 import DCPModel
 
 def GetProjectDir() -> pathlib.Path:
     return pathlib.Path(__file__).parent.parent
+
+def Preprocess(image: Image.Image) -> torch.Tensor:
+    # PIL images are converted to PyTorch tensor which is a multidimensional array
+    transform = transforms.Compose(
+        [
+            transforms.Resize((224, 224)),  # Resize images to the dimensions required by ResNet18
+            transforms.ToTensor(),
+            transforms.ColorJitter(brightness=0.05, contrast=0.05, saturation=0.05, hue=0.05)
+        ]
+    )
+    transformedImage = transform(image)
+
+    # Gamma Correction involves adjusting brightness and contrast of an image using its pixel values
+    gammaCorrectedImage = transforms.functional.adjust_gamma(transformedImage, 2.2)
+
+    # Histogram Stretching improves the contrast by spreading out its pixel intensity values over a wider range
+    min_val = gammaCorrectedImage.min().float()  # Convert to float for division
+    max_val = gammaCorrectedImage.max().float()
+    if max_val == min_val:  # Handle edge case (constant image)
+            return transformedImage
+    stretchedImage = (gammaCorrectedImage - min_val) / (max_val - min_val)
+
+    # Guided Filtering improves the visual quality of an image while preserving important details and edges
+    stretched_image_np = stretchedImage.permute(1, 2, 0).to(torch.float32).numpy()  # height,width, channels
+    guided_filter = cv2.ximgproc.createGuidedFilter(
+        guide=stretched_image_np, radius=3, eps=0.01
+    )
+    filtered_image = guided_filter.filter(src=stretched_image_np)
+
+    return torch.from_numpy(filtered_image).permute(2, 0, 1)  # channels,height,width
 
 def save_model(epoch, path, net, optimizer, net_name):
     if not os.path.exists(os.path.join(path, net_name)):
         os.mkdir(os.path.join(path, net_name))
     torch.save(
         {"epoch": epoch, "state_dict": net.state_dict(), "optimizer": optimizer.state_dict()},
-        f=os.path.join(path, net_name, "{}_{}.pth".format("DCP_VGG", epoch)),
+        f=os.path.join(path, net_name, "{}_{}.pth".format("DCP", epoch)),
     )
 
 if __name__ == "__main__":

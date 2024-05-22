@@ -4,7 +4,7 @@ import os
 import datetime
 from PIL import Image
 import pathlib
-from DehazingDataset_AODNet import DatasetType, DehazingDataset
+from DehazingDataset import DatasetType, DehazingDataset
 from Model_AODNet import AODnet
 import torch
 import torchvision

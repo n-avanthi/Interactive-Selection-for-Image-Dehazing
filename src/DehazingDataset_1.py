@@ -1,3 +1,5 @@
+# Defining dataset for Resnet18 and VGG16 Models with size (224, 224)
+
 import os
 import pathlib
 from enum import Enum
@@ -60,7 +62,7 @@ class DehazingDataset(Dataset):
             print(f'Error Loading: {self.__HazyImages[index]}')
             print(f'Error Loading: {self.__ClearImages[index]}')
 
-            placeholder_image = torch.zeros((3, 512, 512), dtype=torch.float32)
+            placeholder_image = torch.zeros((3, 224, 224), dtype=torch.float32)
             return placeholder_image, placeholder_image
 
         return hazyImage, clearImage

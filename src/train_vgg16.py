@@ -1,4 +1,4 @@
-# Training resnet model containing layers of DCP on colab
+# Training VGG16 Model containing custom layers
 
 import os
 import pathlib
@@ -9,57 +9,26 @@ import torch.utils.data as tu_data
 import torchvision.utils
 from torchmetrics.image import StructuralSimilarityIndexMeasure
 from skimage.metrics import peak_signal_noise_ratio as psnr
-# from DehazingDataset_DCP import DatasetType, DehazingDataset
-# from Model_AODNet import AODnet
-# from Model_DCP_resnet import DCPModel
+from torchvision.models import vgg16
+from DehazingDataset_1 import DatasetType, DehazingDataset
+from Preprocess_1 import Preprocess
+from Model_VGG16 import DCPModel
 
 def GetProjectDir() -> pathlib.Path:
-    # return pathlib.Path(__file__).parent.parent
-    return "/content/drive/MyDrive/"
-
-def Preprocess(image: Image.Image) -> torch.Tensor:
-    # PIL images are converted to PyTorch tensor which is a multidimensional array
-    transform = transforms.Compose(
-        [
-            transforms.Resize((224, 224)),  # Resize images to the dimensions required by ResNet18
-            transforms.ToTensor(),
-            transforms.ColorJitter(brightness=0.05, contrast=0.05, saturation=0.05, hue=0.05)
-        ]
-    )
-    transformedImage = transform(image)
-
-    # Gamma Correction involves adjusting brightness and contrast of an image using its pixel values
-    gammaCorrectedImage = transforms.functional.adjust_gamma(transformedImage, 2.2)
-
-    # Histogram Stretching improves the contrast by spreading out its pixel intensity values over a wider range
-    min_val = gammaCorrectedImage.min().float()  # Convert to float for division
-    max_val = gammaCorrectedImage.max().float()
-    if max_val == min_val:  # Handle edge case (constant image)
-            return transformedImage
-    stretchedImage = (gammaCorrectedImage - min_val) / (max_val - min_val)
-
-    # Guided Filtering improves the visual quality of an image while preserving important details and edges
-    stretched_image_np = stretchedImage.permute(1, 2, 0).to(torch.float32).numpy()  # height,width, channels
-    guided_filter = cv2.ximgproc.createGuidedFilter(
-        guide=stretched_image_np, radius=3, eps=0.01
-    )
-    filtered_image = guided_filter.filter(src=stretched_image_np)
-
-    return torch.from_numpy(filtered_image).permute(2, 0, 1)  # channels,height,width
-
+    return pathlib.Path(__file__).parent.parent
 
 def save_model(epoch, path, net, optimizer, net_name):
     if not os.path.exists(os.path.join(path, net_name)):
         os.mkdir(os.path.join(path, net_name))
     torch.save(
         {"epoch": epoch, "state_dict": net.state_dict(), "optimizer": optimizer.state_dict()},
-        f=os.path.join(path, net_name, "{}_{}.pth".format("DCP", epoch)),
+        f=os.path.join(path, net_name, "{}_{}.pth".format("DCP_VGG", epoch)),
     )
 
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    datasetPath = GetProjectDir() + "dataset/SS594_Multispectral_Dehazing/Haze1k/Haze1k"
+    datasetPath = GetProjectDir() / "dataset/SS594_Multispectral_Dehazing/Haze1k/Haze1k"
     trainingDataset = DehazingDataset(dehazingDatasetPath=datasetPath, _type=DatasetType.Train, transformFn=Preprocess, verbose=False)
     validationDataset = DehazingDataset(dehazingDatasetPath=datasetPath, _type=DatasetType.Validation, transformFn=Preprocess, verbose=False)
 
@@ -111,7 +80,7 @@ if __name__ == "__main__":
 
         for step, (haze_image, ori_image) in enumerate(validationDataLoader):
             try:
-                if step > 10:
+                if step > 10:  
                     break
                 ori_image, haze_image = ori_image.to(device), haze_image.to(device)
                 dehaze_image = model(haze_image)
@@ -124,10 +93,10 @@ if __name__ == "__main__":
 
                 total_psnr += psnr_val
 
-                # torchvision.utils.save_image(
-                #     torchvision.utils.make_grid(torch.cat((haze_image, dehaze_image, ori_image), 0), nrow=ori_image.shape[0]),
-                #     os.path.join(GetProjectDir() + "output", "{}_{}.jpg".format(epoch + 1, step)),
-                # )
+                torchvision.utils.save_image(
+                    torchvision.utils.make_grid(torch.cat((haze_image, dehaze_image, ori_image), 0), nrow=ori_image.shape[0]),
+                    os.path.join(GetProjectDir() / "output", "{}_{}.jpg".format(epoch + 1, step)),
+                )
 
             except FileNotFoundError as e:
                 print(f"Error: {e}. Skipping this batch.")
@@ -141,4 +110,4 @@ if __name__ == "__main__":
         if average_ssim > best_ssim and average_psnr > best_psnr:
             best_ssim = average_ssim
             best_psnr = average_psnr
-            save_model(epoch, GetProjectDir() + "saved_models", model, optimizer, "best_model")
+            save_model(epoch, GetProjectDir() / "saved_models", model, optimizer, "best_model")
