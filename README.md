@@ -28,7 +28,7 @@ A dataset consisting of Multispectral Satellite Images was used which were captu
 - Images are of size 512x512 pixels.
 - It contains 960 training images, 135 testing images and 105 validation images.
 
-To download and set up the database
+To download and set up the dataset
 ```bash
 $ python setup_dataset.py 
 ```
@@ -94,7 +94,7 @@ $ python Model_VGG16.py
 $ python train_vgg16.py
 ```
 
-## 4. test the model
+## Test the model
 Test the AODNet model
 ```bash
 # include path to saved model in model_path
