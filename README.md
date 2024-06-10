@@ -33,9 +33,8 @@ To download and set up the dataset
 $ python setup_dataset.py 
 ```
 
-
 ## Train the model
-To train the AODNet model
+To train the AODNet model:
 
 ```bash
 # preprocessing the images
@@ -56,7 +55,7 @@ $ python Model_AODNet_1.py
 $ python train_AOD.py
 ```
 
-To train the ResNet18 model
+To train the ResNet18 model:
 
 ```bash
 # preprocessing the images
@@ -75,7 +74,7 @@ $ python Model_ResNet18.py
 $ python train_resnet18.py
 ```
 
-To train the VGG16 model
+To train the VGG16 model:
 
 ```bash
 # preprocessing the images
@@ -95,10 +94,9 @@ $ python train_vgg16.py
 ```
 
 ## Test the model
-Test the AODNet model
 ```bash
 # include path to saved model in model_path
-# change the preprocessing as required by the model(AODNet is default)
+# change the preprocessing as required by the model (AODNet is default)
 $ python ui.py
 # to test the interactive model
 $ python ui-interactive.py
